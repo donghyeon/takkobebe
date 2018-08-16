@@ -9,6 +9,8 @@ from django.utils.encoding import smart_str
 from .models import UploadFileForm
 from .models import TakkoOrder
 from .models import TakkoInvoice
+from .models import NewTakkoOrder
+
 import os
 
 
@@ -25,7 +27,7 @@ def upload_file(request):
         if form.is_valid():
             save_uploaded_file(request.FILES['file'])
             #fileName = combineOrders.combineOrders(fileDir)
-            takko_order = TakkoOrder(fileDir)
+            takko_order = NewTakkoOrder(fileDir)
             fileName = takko_order.save_to_excel()
             return download_file(fileName)
             #return HttpResponseRedirect('/success/url/')
@@ -51,6 +53,7 @@ def download_file(fileDir):
         # It's usually a good idea to set the 'Content-Length' header too.
         # You can also set any other required headers: Cache-Control, etc.
         return response
+
 
 def invoice_test(request):
     if request.method == 'POST':
