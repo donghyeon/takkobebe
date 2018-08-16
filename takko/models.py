@@ -119,12 +119,12 @@ class Recipient(object):
     #     return combined_comments
     @property
     def combined_comments(self):
-        comments = self._recipient_orders_df['주문시 남기는 글'].unique()
+        comments = pd.Series(self._recipient_orders_df['주문시 남기는 글'].unique()).dropna()
         combined_comments = ''
         for i, comment in enumerate(comments):
             if i > 0:
                 combined_comments += ', '
-            if (not pd.isna(comment)) or len(comment) > 0:
+            if len(comment) > 0:
                 combined_comments += comment
         return combined_comments
 
@@ -238,7 +238,7 @@ class NewTakkoOrder(object):
                                        '수취인 우편번호': recipient.zip_code,
                                        '상품주문번호 리스트': json.dumps(recipient.combined_order_ids),
                                        '주문 내역': recipient.combined_order_details_to_string,
-                                       '주문시 남기는 글': recipient.combined_comments})
+                                       '주문시 남기는 글': recipient.combined_comments}, ignore_index=True)
         return combined_orders_df
 
     def save_to_excel(self, file_name='combined.xlsx'):
