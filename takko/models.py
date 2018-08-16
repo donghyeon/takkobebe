@@ -231,14 +231,15 @@ class NewTakkoOrder(object):
 
         combined_orders_df = pd.DataFrame(columns=out_columns)
         for recipient in self._recipients:
-            combined_orders_df.append({'수취인 이름': recipient.name,
-                                       '수취인 핸드폰 번호': recipient.phone_number,
-                                       '수취인 전체주소': recipient.address,
-                                       '수취인 구 우편번호 (6자리)': recipient.old_zip_code,
-                                       '수취인 우편번호': recipient.zip_code,
-                                       '상품주문번호 리스트': json.dumps(recipient.combined_order_ids),
-                                       '주문 내역': recipient.combined_order_details_to_string,
-                                       '주문시 남기는 글': recipient.combined_comments}, ignore_index=True)
+            combined_orders_df = combined_orders_df.append(
+                {'수취인 이름': recipient.name,
+                 '수취인 핸드폰 번호': recipient.phone_number,
+                 '수취인 전체주소': recipient.address,
+                 '수취인 구 우편번호 (6자리)': recipient.old_zip_code,
+                 '수취인 우편번호': recipient.zip_code,
+                 '상품주문번호 리스트': json.dumps(recipient.combined_order_ids),
+                 '주문 내역': recipient.combined_order_details_to_string,
+                 '주문시 남기는 글': recipient.combined_comments}, ignore_index=True)
         return combined_orders_df
 
     def save_to_excel(self, file_name='combined.xlsx'):
