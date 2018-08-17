@@ -9,7 +9,6 @@ from django.utils.encoding import smart_str
 from .models import UploadFileForm
 from .models import TakkoOrder
 from .models import TakkoInvoice
-from .models import NewTakkoOrder
 
 import os
 
@@ -27,7 +26,7 @@ def upload_file(request):
         if form.is_valid():
             save_uploaded_file(request.FILES['file'])
             #fileName = combineOrders.combineOrders(fileDir)
-            takko_order = NewTakkoOrder(fileDir)
+            takko_order = TakkoOrder(fileDir)
             fileName = takko_order.save_to_excel()
             return download_file(fileName)
             #return HttpResponseRedirect('/success/url/')

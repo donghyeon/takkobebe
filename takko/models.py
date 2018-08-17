@@ -14,9 +14,9 @@ class UploadFileForm(forms.Form):
 
 class Recipient(object):
     def __init__(self, name, phone_number, address, recipient_orders_df):
-        self._name = str(name)
-        self._phone_number = str(phone_number)
-        self._address = str(address)
+        self._name = name
+        self._phone_number = phone_number
+        self._address = address
         self._recipient_orders_df = recipient_orders_df
 
         self._zip_code = self.read_zip_code()
@@ -53,7 +53,7 @@ class Recipient(object):
         orders = {}
         for order_id in self._recipient_orders_df['주문 번호'].unique():
             mask = self._recipient_orders_df['주문 번호'] == order_id
-            orders[order_id] = Order(order_id, self._recipient_orders_df[mask])
+            orders[int(order_id)] = Order(order_id, self._recipient_orders_df[mask])
         return orders
 
     def read_zip_code(self):
@@ -70,7 +70,7 @@ class Recipient(object):
 
     @property
     def combined_order_ids(self):
-        return {str(order_id): self._orders[order_id].good_order_ids for order_id in self._orders}
+        return {order_id: self._orders[order_id].good_order_ids for order_id in self._orders}
 
     def combine_order_details(self):
         combined_goods = []
@@ -93,30 +93,22 @@ class Recipient(object):
         details_str = ''
         for i, good_name in enumerate(self._combined_order_details):
             if i > 0:
-                details_str += '; '
+                details_str += ' --- '
+
             details_str += good_name + ': '
+
             for j, good_option in enumerate(self._combined_order_details[good_name]):
                 if j > 0:
                     details_str += ', '
+
                 if not pd.isna(good_option):
                     details_str += good_option + ' '
-                details_str += str(self._combined_order_details[good_name][good_option]) + '개'
+
+                good_amount = self._combined_order_details[good_name][good_option]
+                if not pd.isna(good_amount):
+                    details_str += str(good_amount) + '개'
         return details_str
 
-    # @property
-    # def combined_comments(self):
-    #     comments = pd.Series([])
-    #     for order in self._orders.values():
-    #         comments.append(order.comments)
-    #     comments = list(comments.unique().dropna())
-    #
-    #     combined_comments = ''
-    #     for i, comment in enumerate(comments):
-    #         if i > 0:
-    #             combined_comments += ', '
-    #         if len(comment) > 0:
-    #             combined_comments += comment
-    #     return combined_comments
     @property
     def combined_comments(self):
         comments = pd.Series(self._recipient_orders_df['주문시 남기는 글'].unique()).dropna()
@@ -156,7 +148,7 @@ class Order(object):
         goods = []
         good_order_ids = []
         for _, row in self._order_df.iterrows():
-            good_order_id = row['상품주문번호']
+            good_order_id = int(row['상품주문번호'])
             name = row['상품명']
             option = row['옵션정보']
             amount = row['상품수량']
@@ -172,10 +164,10 @@ class Order(object):
 class Good(object):
     def __init__(self, good_order_id, name, option, amount, comment):
         self._good_order_id = good_order_id
-        self._name = str(name)
-        self._option = str(option)
+        self._name = name
+        self._option = option
         self._amount = amount
-        self._comment = str(comment)
+        self._comment = comment
 
     @property
     def good_order_id(self):
@@ -198,7 +190,7 @@ class Good(object):
         return self._comment
 
 
-class NewTakkoOrder(object):
+class TakkoOrder(object):
     def __init__(self, file_dir):
         self._takko_order_df = self._read_sheet_file(file_dir)
         self._recipients = self._get_unique_recipients()
@@ -265,120 +257,8 @@ def _get_mask(dataframe, row):
     return pd.DataFrame(dataframe == row).all(axis='columns')
 
 
-class TakkoOrder(object):
-    _recipient_columns = ['수취인 이름', '수취인 핸드폰 번호', '수취인 전체주소']
-    _additional_columns = ['수취인 구 우편번호 (6자리)', '수취인 우편번호', '주문시 남기는 글']
-    _combined_order_columns = ['상품주문번호 리스트', '주문 내역']
-    _order_detail_columns = ['주문번호', '상품주문번호', '상품명', '옵션정보', '상품수량']
-
-    def __init__(self, file_dir):
-        self._order_df = self._read_sheet_file(file_dir)
-        self._recipients = self._get_unique_recipients()
-        self._combined_orders_df = self.combine_all_orders()
-
-    @staticmethod
-    def _read_sheet_file(file_dir):
-        try:
-            df = pd.read_excel(file_dir)
-        except XLRDError:
-            df = pd.read_html(file_dir, header=0)[0]
-        return df
-
-    def _get_unique_recipients(self):
-        all_recipients = self._order_df[self._recipient_columns]
-        return all_recipients.drop_duplicates()
-
-    @property
-    def recipients(self):
-        return self._recipients
-
-    def combine_all_orders(self):
-        all_recipients = self._order_df[self._recipient_columns]
-        combined_all_orders = pd.DataFrame(self.recipients,
-                                           columns=[*self._recipient_columns,
-                                                    *self._combined_order_columns,
-                                                    *self._additional_columns])
-
-        for index, recipient in self.recipients.iterrows():
-            recipient_mask = self._get_mask(all_recipients, recipient)
-            recipient_orders = self._order_df[[*self._order_detail_columns, *self._additional_columns]][recipient_mask]
-            combined_all_orders.loc[index, self._combined_order_columns] = self._combine_recipient_orders(recipient_orders)
-            combined_all_orders.loc[index, self._additional_columns] = self._combine_additions(recipient_orders)
-
-        self._combined_orders_df = combined_all_orders
-        return combined_all_orders
-
-    def _combine_recipient_orders(self, recipient_orders):
-        goods = recipient_orders[['상품명']].drop_duplicates()
-        combined_recipient_orders = None
-        for _, good in goods.iterrows():
-            good_mask = self._get_mask(recipient_orders[['상품명']], good)
-            good_orders = recipient_orders[good_mask]
-
-            good_details = self._get_good_details(good_orders)
-            if combined_recipient_orders is None:
-                combined_recipient_orders = good_details
-            else:
-                combined_recipient_orders += pd.Series(['; ', '; '], index=self._combined_order_columns) + good_details
-        return combined_recipient_orders
-
-    def _get_good_details(self, good_orders):
-        good_order_numbers = good_orders['상품주문번호'].astype(str)
-
-        good_details = pd.Series(['; '.join(good_order_numbers),
-                                  self._get_detail_str(good_orders)], index=self._combined_order_columns)
-        return good_details
-
-    def _get_detail_str(self, good_orders):
-        detail_str_list = []
-        for _, good_row in good_orders.iterrows():
-            if not detail_str_list:
-                detail_str_list.append(good_row['상품명'] + ': ')
-            else:
-                detail_str_list.append(', ')
-
-            if not pd.isna(good_row['옵션정보']):
-                detail_str_list.append(str(good_row['옵션정보']) + ' ')
-            if not pd.isna(good_row['상품수량']):
-                detail_str_list.append(str(good_row['상품수량']) + '개')
-        return ''.join(detail_str_list)
-
-    def _combine_additions(self, recipient_orders):
-        addition_data = pd.Series(index=self._additional_columns)
-        for column in self._additional_columns:
-            additions_unique = recipient_orders[column].unique()
-            additions_str_list = []
-            for addition in additions_unique:
-                if not pd.isna(addition):
-                    additions_str_list.append(str(addition))
-            addition_data[column] = '; '.join(additions_str_list)
-        return addition_data
-
-    @staticmethod
-    def _get_mask(dataframe, row):
-        return pd.DataFrame(dataframe == row).all(axis='columns')
-
-    def save_to_excel(self, file_name='combined.xlsx'):
-        dfs = {'주문 내역 정리': self._combined_orders_df}
-        writer = pd.ExcelWriter(file_name, engine='xlsxwriter')
-        for sheetname, df in dfs.items():  # loop through `dict` of dataframes
-            df.to_excel(writer, sheet_name=sheetname, index=False)  # send df to writer
-            worksheet = writer.sheets[sheetname]  # pull worksheet object
-
-            for idx, col in enumerate(df):  # loop through all columns
-                series = df[col]
-                max_len = max(
-                    series.astype(str).map(visual_len).max(),  # len of largest item
-                    visual_len(str(series.name))  # len of column name/header
-                )
-                worksheet.set_column(idx, idx, max_len)  # set column width
-
-        writer.save()
-        return file_name
-
-
 class TakkoInvoice(object):
-    _default_columns = ['번호', '상품주문번호', '배송업체번호', '송장번호', '배송일', '배송완료일']
+    _default_columns = ['번호', '주문번호', '상품주문번호', '배송업체번호', '송장번호', '배송일', '배송완료일']
     _invoice_column_candidates = ['운송장', '운송장번호', '운송장 번호', '송장', '송장번호', '송장 번호']
 
     def __init__(self, file_dir):
@@ -406,20 +286,26 @@ class TakkoInvoice(object):
             df = pd.read_html(file_dir, header=0)[0]
         return df
 
+    @staticmethod
+    def _read_combined_order_ids(combined_order_ids):
+        combined_order_ids = json.loads(combined_order_ids)
+        order_ids_df = pd.DataFrame(columns=['주문번호', '상품주문번호'])
+        for order_id in combined_order_ids:
+            ids_rows = pd.DataFrame({'주문번호': order_id, '상품주문번호': combined_order_ids[order_id]})
+            order_ids_df = order_ids_df.append(ids_rows)
+        return order_ids_df
+
     def _convert_invoice_form(self):
         converted_invoice = pd.DataFrame(columns=self._default_columns)
-
-        p = re.compile('[0-9]+')
         count_start = 1
-        for index, row in self._invoice_df.iterrows():
-            good_order_numbers = p.findall(row['상품주문번호 리스트'])
-            count_stop = count_start + len(good_order_numbers)
-            converted_rows = pd.DataFrame({'번호': range(count_start, count_stop),
-                                           '상품주문번호': good_order_numbers,
-                                           '송장번호': row[self._invoice_column]}, columns=self._default_columns)
-            converted_invoice = converted_invoice.append(converted_rows)
+        for _, row in self._invoice_df.iterrows():
+            order_ids_df = self._read_combined_order_ids(row['상품주문번호 리스트'])
+            count_stop = count_start + len(order_ids_df)
+            order_ids_df['번호'] = range(count_start, count_stop)
+            order_ids_df['송장번호'] = row[self._invoice_column]
+            converted_invoice = converted_invoice.append(order_ids_df)
             count_start = count_stop
-
+        converted_invoice = converted_invoice.reindex(columns=self._default_columns)
         return converted_invoice
 
     def save_to_excel(self, file_name='invoice.xls'):
