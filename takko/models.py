@@ -258,7 +258,7 @@ def _get_mask(dataframe, row):
 
 
 class TakkoInvoice(object):
-    _default_columns = ['번호', '주문번호', '상품주문번호', '배송업체번호', '송장번호', '배송일', '배송완료일']
+    _default_columns = ['번호', '상품주문번호', '주문번호', '배송업체번호', '송장번호', '배송일', '배송완료일']
     _invoice_column_candidates = ['운송장', '운송장번호', '운송장 번호', '송장', '송장번호', '송장 번호']
 
     def __init__(self, file_dir):
